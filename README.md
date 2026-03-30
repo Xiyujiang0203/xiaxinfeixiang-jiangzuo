@@ -4,6 +4,14 @@
 
 > Android app for browsing and managing lectures on the XMU "厦信飞翔" platform.
 
+## Screenshots
+
+<p align="center">
+  <img src="home.jpg" alt="Home" width="32%" height="420" style="object-fit: cover;" />
+  <img src="detail.jpg" alt="Detail" width="32%" height="420" style="object-fit: cover;" />
+  <img src="profile.jpg" alt="Profile" width="32%" height="420" style="object-fit: cover;" />
+</p>
+
 ## Features
 
 - **My Sign-ups** — view all lectures you have registered for, with host, sign-up start time, venue and status
@@ -17,9 +25,9 @@
 
 ## Platform
 
-Android only. The app calls `unify.xmu.edu.cn` APIs directly; the Web build is blocked by browser CORS.
+Android supported. macOS / iOS / Windows / Web: TBD.
 
-## Step 1: Get Cookie (Wireshark capture)
+## Get Cookie (Wireshark capture)
 
 1. Download and install [Wireshark](https://www.wireshark.org/) (desktop).
 2. Open WeChat for Windows, enter the "厦信飞翔" Official Account and sign in.
@@ -45,3 +53,6 @@ Output: `build/app/outputs/flutter-apk/app-release.apk`
 ## Set Cookie
 
 Tap the cookie icon (top-right of any page) or go to **我的 → Cookie**, paste the full `Cookie` string and save.
+Cookie format example: `deviceKey=951b74c7-f351-4704-a20c-b434f85ddcbe`
+
+Note: Cookie expires. If requests start failing, capture and set a new Cookie.

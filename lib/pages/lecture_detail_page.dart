@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
+import 'package:android_intent_plus/android_intent.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:xiaxinfeixiang/api/unify_api.dart';
-import 'package:xiaxinfeixiang/notifications/notifier.dart';
 import 'package:xiaxinfeixiang/storage/cookie_store.dart';
 
 enum _AlarmKind { lecture, signIn }
+enum _CalendarKind { lecture, signUp }
 
 class LectureDetailPage extends StatefulWidget {
   const LectureDetailPage({super.key, required this.id, required this.title});
@@ -80,6 +81,19 @@ class _LectureDetailPageState extends State<LectureDetailPage> {
     );
   }
 
+  Widget _infoTile({
+    required IconData icon,
+    required String title,
+    required String value,
+  }) {
+    return ListTile(
+      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 0),
+      leading: Icon(icon),
+      title: Text(title),
+      subtitle: Text(value),
+    );
+  }
+
   Widget? _buildEmphasis({
     required Map<String, dynamic>? res,
     required Map<String, dynamic>? data,
@@ -133,13 +147,24 @@ class _LectureDetailPageState extends State<LectureDetailPage> {
     required DateTime when,
     required String message,
   }) async {
-    await Notifier.requestPermission();
-    await Notifier.schedule(
-      id: when.millisecondsSinceEpoch.remainder(1000000000),
-      when: when,
-      title: '厦信飞翔讲座提醒',
-      body: message,
+    final intent = AndroidIntent(
+      action: 'android.intent.action.SET_ALARM',
+      arguments: <String, dynamic>{
+        'android.intent.extra.alarm.MESSAGE': message,
+        'android.intent.extra.alarm.HOUR': when.hour,
+        'android.intent.extra.alarm.MINUTES': when.minute,
+        'android.intent.extra.alarm.DAY': when.day,
+        'android.intent.extra.alarm.MONTH': when.month,
+        'android.intent.extra.alarm.YEAR': when.year,
+        'android.intent.extra.alarm.SKIP_UI': false,
+      },
     );
+    try {
+      await intent.launch();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
+    }
   }
 
   Future<void> _share(String text) async {
@@ -149,6 +174,96 @@ class _LectureDetailPageState extends State<LectureDetailPage> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
     }
+  }
+
+  Future<void> _addCalendarEvent({
+    required DateTime start,
+    required DateTime end,
+    required String title,
+    required String description,
+    required String location,
+  }) async {
+    final intent = AndroidIntent(
+      action: 'android.intent.action.INSERT',
+      data: 'content://com.android.calendar/events',
+      arguments: <String, dynamic>{
+        'title': title,
+        'description': description,
+        'eventLocation': location,
+        'beginTime': start.millisecondsSinceEpoch,
+        'endTime': end.millisecondsSinceEpoch,
+      },
+    );
+    try {
+      await intent.launch();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
+    }
+  }
+
+  Future<void> _openCalendarSheet({
+    required _CalendarKind kind,
+    required String name,
+    required String hoster,
+    required String address,
+    required DateTime baseTime,
+  }) async {
+    final isSignUp = kind == _CalendarKind.signUp;
+    final kindText = isSignUp ? '报名开始' : '讲座开始';
+    final base = [
+      name.trim(),
+      if (hoster.trim().isNotEmpty) '主讲人：${hoster.trim()}',
+      if (address.trim().isNotEmpty) '地点：${address.trim()}',
+    ].where((e) => e.isNotEmpty).join(' ');
+
+    Future<void> createWithOffset(int minutes) async {
+      final start = baseTime.subtract(Duration(minutes: minutes));
+      final end = start.add(const Duration(minutes: 10));
+      await _addCalendarEvent(
+        start: start,
+        end: end,
+        title: '$kindText提醒（提前$minutes分钟）',
+        description: base,
+        location: address.trim(),
+      );
+    }
+
+    await showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (context) => SafeArea(
+        child: ListView(
+          shrinkWrap: true,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.event),
+              title: Text('$kindText前20分钟'),
+              onTap: () async {
+                Navigator.pop(context);
+                await createWithOffset(20);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.event),
+              title: Text('$kindText前10分钟'),
+              onTap: () async {
+                Navigator.pop(context);
+                await createWithOffset(10);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.event),
+              title: Text('$kindText前2分钟'),
+              onTap: () async {
+                Navigator.pop(context);
+                await createWithOffset(2);
+              },
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   Future<void> _openAlarmSheet({
@@ -193,6 +308,13 @@ class _LectureDetailPageState extends State<LectureDetailPage> {
           child: ListView(
             shrinkWrap: true,
             children: [
+              const Padding(
+                padding: EdgeInsets.fromLTRB(16, 12, 16, 8),
+                child: Text(
+                  '提示：部分手机闹钟不支持自动设置日期，请在闹钟里手动修改日期',
+                  style: TextStyle(fontSize: 12, color: Colors.black54),
+                ),
+              ),
               ListTile(
                 leading: const Icon(Icons.alarm),
                 title: Text(t20),
@@ -271,6 +393,14 @@ class _LectureDetailPageState extends State<LectureDetailPage> {
         });
         return;
       }
+      if (res['data'] is! Map) {
+        setState(() {
+          _loading = false;
+          _error = 'Cookie 错误或已过期';
+          _res = res;
+        });
+        return;
+      }
       setState(() {
         _loading = false;
         _res = res;
@@ -314,6 +444,7 @@ class _LectureDetailPageState extends State<LectureDetailPage> {
       name.trim(),
       if (hoster.trim().isNotEmpty) '主讲人：${hoster.trim()}',
       if (address.trim().isNotEmpty) '地点：${address.trim()}',
+      if (signUpBegin.trim().isNotEmpty) '报名开始：${signUpBegin.trim()}',
       if (beginOn != null) '开始时间：${beginOn.toString().replaceFirst(".000", "")}',
     ].where((e) => e.isNotEmpty).join('\n');
 
@@ -336,36 +467,76 @@ class _LectureDetailPageState extends State<LectureDetailPage> {
             if (!_loading && _error != null)
               Padding(
                 padding: const EdgeInsets.only(top: 48),
-                child: Center(child: Text(_error!)),
+                child: Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(14),
+                    child: Text(_error!),
+                  ),
+                ),
               ),
             if (!_loading && _error == null) ...[
               if (emphasis != null) ...[
                 emphasis,
                 const SizedBox(height: 12),
               ],
-              if (hoster.trim().isNotEmpty)
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: const Icon(Icons.mic),
-                  title: const Text('主讲人'),
-                  subtitle: Text(hoster),
+              Card(
+                child: Column(
+                  children: [
+                    if (hoster.trim().isNotEmpty) _infoTile(icon: Icons.mic_outlined, title: '主讲人', value: hoster),
+                    if (address.trim().isNotEmpty) _infoTile(icon: Icons.place_outlined, title: '地点', value: address),
+                    if (signUpBegin.trim().isNotEmpty || signUpEnd.trim().isNotEmpty)
+                      _infoTile(
+                        icon: Icons.how_to_reg_outlined,
+                        title: '报名时间',
+                        value: [signUpBegin, signUpEnd].where((e) => e.trim().isNotEmpty).join(' - '),
+                      ),
+                  ],
                 ),
-              if (address.trim().isNotEmpty)
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: const Icon(Icons.place),
-                  title: const Text('地点'),
-                  subtitle: Text(address),
+              ),
+              if (content.trim().isNotEmpty) ...[
+                const SizedBox(height: 12),
+                Card(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(14, 14, 14, 16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text('详情', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                        const SizedBox(height: 8),
+                        SelectableText(content),
+                      ],
+                    ),
+                  ),
                 ),
-              if (signUpBegin.trim().isNotEmpty || signUpEnd.trim().isNotEmpty)
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: const Icon(Icons.how_to_reg),
-                  title: const Text('报名时间'),
-                  subtitle: Text([signUpBegin, signUpEnd].where((e) => e.trim().isNotEmpty).join(' - ')),
+              ],
+              if (activities.isNotEmpty) ...[
+                const SizedBox(height: 16),
+                Card(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(14, 14, 14, 10),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text('场次', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                        const SizedBox(height: 8),
+                        for (final a in activities)
+                          if (a is Map)
+                            ListTile(
+                              contentPadding: EdgeInsets.zero,
+                              title: Text((a['Name'] ?? '').toString().trim().isEmpty ? name : (a['Name'] ?? name).toString()),
+                              subtitle: Text([
+                                (a['State'] ?? '').toString(),
+                                (a['BeginOn'] ?? '').toString(),
+                                (a['EndOn'] ?? '').toString(),
+                              ].where((e) => e.trim().isNotEmpty).join('  ')),
+                            ),
+                      ],
+                    ),
+                  ),
                 ),
-              const SizedBox(height: 8),
-              FilledButton.icon(
+              ],
+              const SizedBox(height: 16),
+              OutlinedButton.icon(
                 onPressed: signUpBeginDt == null
                     ? null
                     : () => _openAlarmSheet(
@@ -380,7 +551,7 @@ class _LectureDetailPageState extends State<LectureDetailPage> {
                 label: const Text('设置讲座报名提醒闹钟'),
               ),
               const SizedBox(height: 8),
-              FilledButton.icon(
+              OutlinedButton.icon(
                 onPressed: beginOn == null
                     ? null
                     : () => _openAlarmSheet(
@@ -393,28 +564,34 @@ class _LectureDetailPageState extends State<LectureDetailPage> {
                 icon: const Icon(Icons.alarm_add),
                 label: const Text('设置讲座签到闹钟'),
               ),
-              if (content.trim().isNotEmpty) ...[
-                const SizedBox(height: 12),
-                const Text('详情', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
-                const SizedBox(height: 8),
-                SelectableText(content),
-              ],
-              if (activities.isNotEmpty) ...[
-                const SizedBox(height: 16),
-                const Text('场次', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
-                const SizedBox(height: 8),
-                for (final a in activities)
-                  if (a is Map)
-                    ListTile(
-                      contentPadding: EdgeInsets.zero,
-                      title: Text((a['Name'] ?? '').toString().trim().isEmpty ? name : (a['Name'] ?? name).toString()),
-                      subtitle: Text([
-                        (a['State'] ?? '').toString(),
-                        (a['BeginOn'] ?? '').toString(),
-                        (a['EndOn'] ?? '').toString(),
-                      ].where((e) => e.trim().isNotEmpty).join('  ')),
-                    ),
-              ],
+              const SizedBox(height: 8),
+              OutlinedButton.icon(
+                onPressed: signUpBeginDt == null
+                    ? null
+                    : () => _openCalendarSheet(
+                          kind: _CalendarKind.signUp,
+                          name: name,
+                          hoster: hoster,
+                          address: address,
+                          baseTime: signUpBeginDt,
+                        ),
+                icon: const Icon(Icons.calendar_month),
+                label: const Text('将报名开始时间添加到日历'),
+              ),
+              const SizedBox(height: 8),
+              OutlinedButton.icon(
+                onPressed: beginOn == null
+                    ? null
+                    : () => _openCalendarSheet(
+                          kind: _CalendarKind.lecture,
+                          name: name,
+                          hoster: hoster,
+                          address: address,
+                          baseTime: beginOn,
+                        ),
+                icon: const Icon(Icons.calendar_month),
+                label: const Text('将讲座开始时间添加到日历'),
+              ),
             ],
           ],
         ),

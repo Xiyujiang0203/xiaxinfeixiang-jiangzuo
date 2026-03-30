@@ -17,6 +17,7 @@ class _LecturesPageState extends State<LecturesPage> {
   String? _cookie;
 
   bool _loading = false;
+  bool _isPulling = false;
   String? _error;
   List<Map<String, dynamic>> _mySignUps = const [];
   List<Map<String, dynamic>> _mySignIns = const [];
@@ -101,6 +102,17 @@ class _LecturesPageState extends State<LecturesPage> {
         if (row is Map) signIns.add(row.cast<String, dynamic>());
       }
 
+      if (signUps.isEmpty && signIns.isEmpty) {
+        setState(() {
+          _loading = false;
+          _mySignUps = const [];
+          _mySignIns = const [];
+          _signUpBeginById = const {};
+          _error = 'Cookie 错误或已过期';
+        });
+        return;
+      }
+
       setState(() {
         _loading = false;
         _mySignUps = signUps;
@@ -166,13 +178,19 @@ class _LecturesPageState extends State<LecturesPage> {
             maxLines: 3,
           ),
           actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('取消'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.pop(context, controller.text),
-              child: const Text('保存'),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('取消'),
+                ),
+                const SizedBox(width: 8),
+                TextButton(
+                  onPressed: () => Navigator.pop(context, controller.text),
+                  child: const Text('保存'),
+                ),
+              ],
             ),
           ],
         );
@@ -191,6 +209,35 @@ class _LecturesPageState extends State<LecturesPage> {
       if (s.isNotEmpty) return s;
     }
     return '';
+  }
+
+  Widget _sectionTitle(String text, IconData icon) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        children: [
+          Icon(icon, size: 20),
+          const SizedBox(width: 8),
+          Text(text, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
+        ],
+      ),
+    );
+  }
+
+  Widget _hintCard(String text, {IconData icon = Icons.info_outline}) {
+    final cs = Theme.of(context).colorScheme;
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Row(
+          children: [
+            Icon(icon, color: cs.primary),
+            const SizedBox(width: 10),
+            Expanded(child: Text(text)),
+          ],
+        ),
+      ),
+    );
   }
 
   @override
@@ -213,21 +260,37 @@ class _LecturesPageState extends State<LecturesPage> {
         ],
       ),
       body: RefreshIndicator(
-        onRefresh: _loadAll,
+        onRefresh: () async {
+          setState(() => _isPulling = true);
+          await _loadAll();
+          if (mounted) setState(() => _isPulling = false);
+        },
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
-            if (!cookieOk) const Center(child: Padding(padding: EdgeInsets.only(top: 48), child: Text('请先在右上角输入 Cookie'))),
+            if (!cookieOk) ...[
+              const SizedBox(height: 32),
+              _hintCard('请先在右上角输入 Cookie', icon: Icons.cookie_outlined),
+            ],
             if (cookieOk && !_loading && _error != null)
-              Center(child: Padding(padding: const EdgeInsets.only(top: 48), child: Text(_error!))),
+              Padding(
+                padding: const EdgeInsets.only(top: 32),
+                child: _hintCard(_error!, icon: Icons.error_outline),
+              ),
+            if (cookieOk && _loading && !_isPulling)
+              const Padding(
+                padding: EdgeInsets.only(top: 36),
+                child: Center(child: CircularProgressIndicator()),
+              ),
             if (cookieOk && !_loading && _error == null) ...[
-              const Text('已报名讲座', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
-              const SizedBox(height: 8),
-              if (_mySignUps.isEmpty) const Text('暂无'),
+              _sectionTitle('已报名讲座', Icons.how_to_reg),
+              if (_mySignUps.isEmpty) _hintCard('暂无已报名讲座', icon: Icons.inbox_outlined),
               for (final row in _mySignUps) ...[
                 Card(
                   clipBehavior: Clip.antiAlias,
+                  margin: const EdgeInsets.only(bottom: 10),
                   child: ListTile(
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
                     title: Text(_pickStr(row, ['Name', 'Title', 'title'])),
                     key: ValueKey(_pickStr(row, ['ActivityCategoryId', 'ActivityId', 'Id', 'ID', 'id'])),
                     subtitle: Text([
@@ -245,17 +308,19 @@ class _LecturesPageState extends State<LecturesPage> {
                         ),
                       );
                     },
+                    trailing: const Icon(Icons.chevron_right),
                   ),
                 ),
               ],
               const SizedBox(height: 16),
-              const Text('已签到讲座', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
-              const SizedBox(height: 8),
-              if (_mySignIns.isEmpty) const Text('暂无'),
+              _sectionTitle('已签到讲座', Icons.task_alt),
+              if (_mySignIns.isEmpty) _hintCard('暂无已签到讲座', icon: Icons.inbox_outlined),
               for (final row in _mySignIns) ...[
                 Card(
                   clipBehavior: Clip.antiAlias,
+                  margin: const EdgeInsets.only(bottom: 10),
                   child: ListTile(
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
                     title: Text(_pickStr(row, ['Name', 'Title', 'title'])),
                     subtitle: Text([
                       '主讲人：${_pickStr(row, ['Hoster'])}',
@@ -268,6 +333,7 @@ class _LecturesPageState extends State<LecturesPage> {
                       if (!UnifyApi.isUuid(id)) return;
                       Navigator.of(context).push(MaterialPageRoute(builder: (_) => LectureDetailPage(id: id, title: title)));
                     },
+                    trailing: const Icon(Icons.chevron_right),
                   ),
                 ),
               ],

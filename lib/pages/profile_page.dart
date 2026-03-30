@@ -81,13 +81,19 @@ class _ProfilePageState extends State<ProfilePage> {
             maxLines: 3,
           ),
           actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('取消'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.pop(context, controller.text),
-              child: const Text('保存'),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('取消'),
+                ),
+                const SizedBox(width: 8),
+                TextButton(
+                  onPressed: () => Navigator.pop(context, controller.text),
+                  child: const Text('保存'),
+                ),
+              ],
             ),
           ],
         );
@@ -102,6 +108,31 @@ class _ProfilePageState extends State<ProfilePage> {
     final v = m?[key];
     if (v == null) return '';
     return v.toString().trim();
+  }
+
+  Widget _itemTile({
+    required IconData icon,
+    required String title,
+    required String value,
+  }) {
+    return ListTile(
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
+      leading: Icon(icon),
+      title: Text(title),
+      subtitle: Text(value),
+    );
+  }
+
+  Widget _cookieCard(bool cookieOk) {
+    return Card(
+      child: ListTile(
+        leading: Icon(cookieOk ? Icons.check_circle : Icons.error_outline),
+        title: const Text('Cookie'),
+        subtitle: Text(cookieOk ? '已设置' : '未设置'),
+        trailing: const Icon(Icons.chevron_right),
+        onTap: _editCookie,
+      ),
+    );
   }
 
   @override
@@ -119,72 +150,58 @@ class _ProfilePageState extends State<ProfilePage> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('我的'),
-        actions: [
-          IconButton(
-            onPressed: _editCookie,
-            icon: const Icon(Icons.cookie),
-            tooltip: 'Cookie',
-          ),
-        ],
       ),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          if (cookieOk) ...[
-            const SizedBox(height: 8),
-            if (_loading) const Center(child: Padding(padding: EdgeInsets.only(top: 12), child: CircularProgressIndicator())),
-            if (!_loading && _error != null) Padding(padding: const EdgeInsets.only(top: 12), child: Text(_error!)),
-            if (!_loading && _error == null && userInfo != null) ...[
-              if (avatar.isNotEmpty)
-                Center(
-                  child: CircleAvatar(
-                    radius: 36,
-                    backgroundImage: NetworkImage(avatar),
+      body: RefreshIndicator(
+        onRefresh: _load,
+        child: ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
+            if (cookieOk) ...[
+              if (_loading)
+                const Padding(
+                  padding: EdgeInsets.only(top: 20),
+                  child: Center(child: CircularProgressIndicator()),
+                ),
+              if (!_loading && _error != null)
+                Padding(
+                  padding: const EdgeInsets.only(top: 12),
+                  child: Card(
+                    child: Padding(
+                      padding: const EdgeInsets.all(14),
+                      child: Text(_error!),
+                    ),
                   ),
                 ),
-              if (realName.isNotEmpty)
-                ListTile(
-                  leading: const Icon(Icons.badge),
-                  title: const Text('姓名'),
-                  subtitle: Text(realName),
+              if (!_loading && _error == null && userInfo != null)
+                Card(
+                  margin: const EdgeInsets.only(top: 2),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 10),
+                    child: Column(
+                      children: [
+                        if (avatar.isNotEmpty)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 8, bottom: 6),
+                            child: CircleAvatar(
+                              radius: 36,
+                              backgroundImage: NetworkImage(avatar),
+                            ),
+                          ),
+                        if (realName.isNotEmpty) _itemTile(icon: Icons.badge_outlined, title: '姓名', value: realName),
+                        if (userCode.isNotEmpty)
+                          _itemTile(icon: Icons.confirmation_number_outlined, title: '学号', value: userCode),
+                        if (mobile.isNotEmpty) _itemTile(icon: Icons.phone_outlined, title: '手机号', value: mobile),
+                        if (email.isNotEmpty) _itemTile(icon: Icons.email_outlined, title: '邮箱', value: email),
+                      ],
+                    ),
+                  ),
                 ),
-              if (userCode.isNotEmpty)
-                ListTile(
-                  leading: const Icon(Icons.confirmation_number),
-                  title: const Text('学号'),
-                  subtitle: Text(userCode),
-                ),
-              if (mobile.isNotEmpty)
-                ListTile(
-                  leading: const Icon(Icons.phone),
-                  title: const Text('手机号'),
-                  subtitle: Text(mobile),
-                ),
-              if (email.isNotEmpty)
-                ListTile(
-                  leading: const Icon(Icons.email),
-                  title: const Text('邮箱'),
-                  subtitle: Text(email),
-                ),
+              const SizedBox(height: 12),
+              _cookieCard(cookieOk),
             ],
-            const SizedBox(height: 8),
-            ListTile(
-              leading: Icon(cookieOk ? Icons.check_circle : Icons.error_outline),
-              title: const Text('Cookie'),
-              subtitle: Text(cookieOk ? '已设置' : '未设置'),
-              trailing: const Icon(Icons.chevron_right),
-              onTap: _editCookie,
-            ),
+            if (!cookieOk) _cookieCard(cookieOk),
           ],
-          if (!cookieOk)
-            ListTile(
-              leading: Icon(cookieOk ? Icons.check_circle : Icons.error_outline),
-              title: const Text('Cookie'),
-              subtitle: Text(cookieOk ? '已设置' : '未设置'),
-              trailing: const Icon(Icons.chevron_right),
-              onTap: _editCookie,
-            ),
-        ],
+        ),
       ),
     );
   }

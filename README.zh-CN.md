@@ -4,6 +4,14 @@
 
 > 厦门大学"厦信飞翔"平台讲座查询与管理 Android 应用。
 
+## 界面展示
+
+<p align="center">
+  <img src="home.jpg" alt="首页" width="32%" height="420" style="object-fit: cover;" />
+  <img src="detail.jpg" alt="详情页" width="32%" height="420" style="object-fit: cover;" />
+  <img src="profile.jpg" alt="我的" width="32%" height="420" style="object-fit: cover;" />
+</p>
+
 ## 功能
 
 - **已报名讲座** — 查看所有已报名讲座，显示主讲人、报名开始时间、地点、状态
@@ -17,9 +25,9 @@
 
 ## 平台
 
-仅支持 Android。应用直接调用 `unify.xmu.edu.cn` 接口，Web 端因浏览器跨域限制无法使用。
+Android 已支持。macOS / iOS / Windows / Web：待开发。
 
-## 第一步：获取 Cookie（Wireshark 抓包）
+## 获取 Cookie（Wireshark 抓包）
 
 1. 下载并安装 [Wireshark](https://www.wireshark.org/)（电脑端）。
 2. 电脑版微信打开"厦信飞翔"服务号并登录。
@@ -45,3 +53,6 @@ flutter build apk --release
 ## 配置 Cookie
 
 任意页面点右上角 Cookie 图标，或进入**我的 → Cookie**，粘贴完整 Cookie 字符串后保存。
+Cookie 格式示例：`deviceKey=951b74c7-f351-4704-a20c-b434f85ddcbe`
+
+注意：Cookie 会过期，接口请求失败时需要重新抓包并更新 Cookie。
