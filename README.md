@@ -7,9 +7,9 @@
 ## Screenshots
 
 <p align="center">
-  <img src="home.jpg" alt="Home" width="32%" height="420" style="object-fit: cover;" />
-  <img src="detail.jpg" alt="Detail" width="32%" height="420" style="object-fit: cover;" />
-  <img src="profile.jpg" alt="Profile" width="32%" height="420" style="object-fit: cover;" />
+  <img src="home.jpg" alt="Home" width="32%" height="450" style="object-fit: cover;" />
+  <img src="detail.jpg" alt="Detail" width="32%" height="450" style="object-fit: cover;" />
+  <img src="profile.jpg" alt="Profile" width="32%" height="450" style="object-fit: cover;" />
 </p>
 
 ## Features
