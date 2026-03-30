@@ -11,8 +11,8 @@ class UnifyApi {
     bool? useProxy,
   })  : _client = client ?? http.Client(),
         useProxy = useProxy ?? kIsWeb,
-        baseUrl = baseUrl ??
-            (kIsWeb ? 'http://127.0.0.1:3000' : 'http://unify.xmu.edu.cn');
+        baseUrl =
+            baseUrl ?? (kIsWeb ? Uri.base.origin : 'http://unify.xmu.edu.cn');
 
   final http.Client _client;
   final String baseUrl;
