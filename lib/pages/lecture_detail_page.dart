@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
-import 'package:android_intent_plus/android_intent.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:xiaxinfeixiang/api/unify_api.dart';
+import 'package:xiaxinfeixiang/notifications/notifier.dart';
 import 'package:xiaxinfeixiang/storage/cookie_store.dart';
 
 enum _AlarmKind { lecture, signIn }
@@ -133,24 +133,13 @@ class _LectureDetailPageState extends State<LectureDetailPage> {
     required DateTime when,
     required String message,
   }) async {
-    final intent = AndroidIntent(
-      action: 'android.intent.action.SET_ALARM',
-      arguments: <String, dynamic>{
-        'android.intent.extra.alarm.MESSAGE': message,
-        'android.intent.extra.alarm.HOUR': when.hour,
-        'android.intent.extra.alarm.MINUTES': when.minute,
-        'android.intent.extra.alarm.DAY': when.day,
-        'android.intent.extra.alarm.MONTH': when.month,
-        'android.intent.extra.alarm.YEAR': when.year,
-        'android.intent.extra.alarm.SKIP_UI': false,
-      },
+    await Notifier.requestPermission();
+    await Notifier.schedule(
+      id: when.millisecondsSinceEpoch.remainder(1000000000),
+      when: when,
+      title: '厦信飞翔讲座提醒',
+      body: message,
     );
-    try {
-      await intent.launch();
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
-    }
   }
 
   Future<void> _share(String text) async {
@@ -168,7 +157,24 @@ class _LectureDetailPageState extends State<LectureDetailPage> {
     required String hoster,
     required String address,
     required DateTime baseTime,
+    DateTime? signUpEnd,
   }) async {
+    if (kind == _AlarmKind.lecture && signUpEnd != null && DateTime.now().isAfter(signUpEnd)) {
+      await showDialog<void>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('报名已结束'),
+          actions: [
+            FilledButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('知道了'),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
+
     final base = [
       name.trim(),
       if (hoster.trim().isNotEmpty) '主讲人：${hoster.trim()}',
@@ -368,6 +374,7 @@ class _LectureDetailPageState extends State<LectureDetailPage> {
                           hoster: hoster,
                           address: address,
                           baseTime: signUpBeginDt,
+                          signUpEnd: _parseXmuDateTime(signUpEnd),
                         ),
                 icon: const Icon(Icons.alarm_add),
                 label: const Text('设置讲座报名提醒闹钟'),

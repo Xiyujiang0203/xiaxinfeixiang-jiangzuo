@@ -130,13 +130,6 @@ class _ProfilePageState extends State<ProfilePage> {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          ListTile(
-            leading: Icon(cookieOk ? Icons.check_circle : Icons.error_outline),
-            title: const Text('Cookie'),
-            subtitle: Text(cookieOk ? '已设置' : '未设置'),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: _editCookie,
-          ),
           if (cookieOk) ...[
             const SizedBox(height: 8),
             if (_loading) const Center(child: Padding(padding: EdgeInsets.only(top: 12), child: CircularProgressIndicator())),
@@ -174,7 +167,23 @@ class _ProfilePageState extends State<ProfilePage> {
                   subtitle: Text(email),
                 ),
             ],
+            const SizedBox(height: 8),
+            ListTile(
+              leading: Icon(cookieOk ? Icons.check_circle : Icons.error_outline),
+              title: const Text('Cookie'),
+              subtitle: Text(cookieOk ? '已设置' : '未设置'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: _editCookie,
+            ),
           ],
+          if (!cookieOk)
+            ListTile(
+              leading: Icon(cookieOk ? Icons.check_circle : Icons.error_outline),
+              title: const Text('Cookie'),
+              subtitle: Text(cookieOk ? '已设置' : '未设置'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: _editCookie,
+            ),
         ],
       ),
     );

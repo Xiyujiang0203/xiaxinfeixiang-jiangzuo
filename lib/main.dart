@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:xiaxinfeixiang/notifications/notifier.dart';
 import 'package:xiaxinfeixiang/pages/home_shell.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
+  Notifier.init();
   runApp(const MyApp());
 }
 
