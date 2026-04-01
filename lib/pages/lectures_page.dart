@@ -19,9 +19,10 @@ class _LecturesPageState extends State<LecturesPage> {
   bool _loading = false;
   bool _isPulling = false;
   String? _error;
-  List<Map<String, dynamic>> _mySignUps = const [];
+  List<Map<String, dynamic>> _userActivities = const [];
   List<Map<String, dynamic>> _mySignIns = const [];
   Map<String, String> _signUpBeginById = const {};
+  Map<String, String> _statusById = const {};
 
   @override
   void initState() {
@@ -54,9 +55,10 @@ class _LecturesPageState extends State<LecturesPage> {
       setState(() {
         _loading = false;
         _error = '仅支持 Android（Web 端会被浏览器限制拦截）';
-        _mySignUps = const [];
+        _userActivities = const [];
         _mySignIns = const [];
         _signUpBeginById = const {};
+        _statusById = const {};
       });
       return;
     }
@@ -65,26 +67,27 @@ class _LecturesPageState extends State<LecturesPage> {
     if (cookie.isEmpty) {
       setState(() {
         _loading = false;
-        _mySignUps = const [];
+        _userActivities = const [];
         _mySignIns = const [];
         _signUpBeginById = const {};
+        _statusById = const {};
       });
       return;
     }
     try {
-      final signUpRes = await _api.mySignUp(cookie: cookie);
-      if (signUpRes['success'] != true) {
+      final actRes = await _api.getUserActivities(cookie: cookie);
+      if (actRes['success'] != true) {
         setState(() {
           _loading = false;
-          _error = (signUpRes['msg'] ?? '请求失败').toString();
+          _error = (actRes['msg'] ?? '请求失败').toString();
         });
         return;
       }
 
-      final dataList = (signUpRes['data'] is List) ? (signUpRes['data'] as List) : const [];
-      final signUps = <Map<String, dynamic>>[];
+      final dataList = (actRes['data'] is List) ? (actRes['data'] as List) : const [];
+      final activities = <Map<String, dynamic>>[];
       for (final row in dataList) {
-        if (row is Map) signUps.add(row.cast<String, dynamic>());
+        if (row is Map) activities.add(row.cast<String, dynamic>());
       }
 
       final signInRes = await _api.mySignIn(cookie: cookie);
@@ -102,26 +105,18 @@ class _LecturesPageState extends State<LecturesPage> {
         if (row is Map) signIns.add(row.cast<String, dynamic>());
       }
 
-      if (signUps.isEmpty && signIns.isEmpty) {
-        setState(() {
-          _loading = false;
-          _mySignUps = const [];
-          _mySignIns = const [];
-          _signUpBeginById = const {};
-          _error = 'Cookie 错误或已过期';
-        });
-        return;
-      }
-
       setState(() {
         _loading = false;
-        _mySignUps = signUps;
+        _userActivities = activities;
         _mySignIns = signIns;
       });
 
-      final signUpBeginById = await _loadSignUpBegins(cookie, signUps);
+      final enriched = await _loadCategoryEnrichment(cookie, activities);
       if (!mounted) return;
-      setState(() => _signUpBeginById = signUpBeginById);
+      setState(() {
+        _signUpBeginById = enriched.signUpBeginById;
+        _statusById = enriched.statusById;
+      });
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -131,16 +126,76 @@ class _LecturesPageState extends State<LecturesPage> {
     }
   }
 
-  Future<Map<String, String>> _loadSignUpBegins(String cookie, List<Map<String, dynamic>> signUps) async {
+  DateTime? _parseXmuDateTime(String s) {
+    final m = RegExp(r'^(\d{4})-(\d{1,2})-(\d{1,2})\s+(\d{1,2}):(\d{1,2})(?::(\d{1,2}))?$')
+        .firstMatch(s.trim());
+    if (m == null) return null;
+    return DateTime(
+      int.parse(m.group(1)!),
+      int.parse(m.group(2)!),
+      int.parse(m.group(3)!),
+      int.parse(m.group(4)!),
+      int.parse(m.group(5)!),
+      int.parse(m.group(6) ?? '0'),
+    );
+  }
+
+  DateTime? _pickActivityBegin(List activities, Map<String, dynamic>? data) {
+    DateTime? best;
+    final now = DateTime.now();
+    for (final a in activities) {
+      if (a is! Map) continue;
+      final s = (a['BeginOn'] ?? '').toString();
+      final dt = _parseXmuDateTime(s);
+      if (dt == null) continue;
+      if (dt.isBefore(now)) continue;
+      if (best == null || dt.isBefore(best)) best = dt;
+    }
+    if (best != null) return best;
+    return _parseXmuDateTime((data?['BeginOn'] ?? '').toString());
+  }
+
+  String _deriveStatusFromCategory(Map<String, dynamic> res) {
+    final now = DateTime.now();
+    final data = (res['data'] is Map) ? (res['data'] as Map).cast<String, dynamic>() : null;
+    final activities = (res['activities'] is List) ? (res['activities'] as List) : const [];
+    final isSignUp = (res['isSignUp'] == true) || (data?['IsSignUp'] == true);
+    final signUpBegin = _parseXmuDateTime((data?['SignUpBegin'] ?? '').toString());
+    final signUpEnd = _parseXmuDateTime((data?['SignUpEnd'] ?? '').toString());
+    final beginOn = _pickActivityBegin(activities, data);
+
+    if (signUpBegin != null && now.isBefore(signUpBegin)) return '报名未开始';
+    if (!isSignUp &&
+        signUpBegin != null &&
+        signUpEnd != null &&
+        now.isAfter(signUpBegin) &&
+        now.isBefore(signUpEnd)) {
+      return '报名进行中';
+    }
+    if (isSignUp) {
+      if (beginOn != null && now.isBefore(beginOn)) return '已报名，未到签到时间';
+      return '已报名';
+    }
+    if (signUpEnd != null && now.isAfter(signUpEnd)) return '报名已结束';
+    return '未报名';
+  }
+
+  Future<({Map<String, String> signUpBeginById, Map<String, String> statusById})> _loadCategoryEnrichment(
+    String cookie,
+    List<Map<String, dynamic>> rows,
+  ) async {
     final ids = <String>{};
-    for (final row in signUps) {
+    for (final row in rows) {
       final id = _pickStr(row, ['ActivityCategoryId', 'ActivityId', 'Id', 'ID', 'id']);
       if (UnifyApi.isUuid(id)) ids.add(id);
     }
     final list = ids.toList();
-    if (list.isEmpty) return const {};
+    if (list.isEmpty) {
+      return (signUpBeginById: <String, String>{}, statusById: <String, String>{});
+    }
 
-    final out = <String, String>{};
+    final signUpBeginById = <String, String>{};
+    final statusById = <String, String>{};
     for (var i = 0; i < list.length; i += 6) {
       final chunk = list.sublist(i, (i + 6) > list.length ? list.length : (i + 6));
       final resList = await Future.wait(
@@ -159,10 +214,11 @@ class _LecturesPageState extends State<LecturesPage> {
         if (res['success'] != true) continue;
         final data = (res['data'] is Map) ? (res['data'] as Map).cast<String, dynamic>() : null;
         final s = (data?['SignUpBegin'] ?? '').toString().trim();
-        if (s.isNotEmpty) out[x.id] = s;
+        if (s.isNotEmpty) signUpBeginById[x.id] = s;
+        statusById[x.id] = _deriveStatusFromCategory(res);
       }
     }
-    return out;
+    return (signUpBeginById: signUpBeginById, statusById: statusById);
   }
 
   Future<void> _editCookie() async {
@@ -283,9 +339,9 @@ class _LecturesPageState extends State<LecturesPage> {
                 child: Center(child: CircularProgressIndicator()),
               ),
             if (cookieOk && !_loading && _error == null) ...[
-              _sectionTitle('已报名讲座', Icons.how_to_reg),
-              if (_mySignUps.isEmpty) _hintCard('暂无已报名讲座', icon: Icons.inbox_outlined),
-              for (final row in _mySignUps) ...[
+              _sectionTitle('报名讲座', Icons.how_to_reg),
+              if (_userActivities.isEmpty) _hintCard('暂无讲座', icon: Icons.inbox_outlined),
+              for (final row in _userActivities) ...[
                 Card(
                   clipBehavior: Clip.antiAlias,
                   margin: const EdgeInsets.only(bottom: 10),
@@ -293,12 +349,16 @@ class _LecturesPageState extends State<LecturesPage> {
                     contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
                     title: Text(_pickStr(row, ['Name', 'Title', 'title'])),
                     key: ValueKey(_pickStr(row, ['ActivityCategoryId', 'ActivityId', 'Id', 'ID', 'id'])),
-                    subtitle: Text([
-                      '主讲人：${_pickStr(row, ['Hoster'])}',
-                      '报名开始：${_signUpBeginById[_pickStr(row, ['ActivityCategoryId', 'ActivityId', 'Id', 'ID', 'id'])] ?? ''}',
-                      '地点：${_pickStr(row, ['Address'])}',
-                      '状态：${_pickStr(row, ['State'])}',
-                    ].where((e) => e.trim().isNotEmpty).join('\n')),
+                    subtitle: Text(() {
+                      final id = _pickStr(row, ['ActivityCategoryId', 'ActivityId', 'Id', 'ID', 'id']);
+                      final st = (_statusById[id] ?? _pickStr(row, ['State'])).trim();
+                      return [
+                        '主讲人：${_pickStr(row, ['Hoster'])}',
+                        '报名开始：${_signUpBeginById[id] ?? ''}',
+                        '地点：${_pickStr(row, ['Address'])}',
+                        if (st.isNotEmpty) '状态：$st',
+                      ].where((e) => e.trim().isNotEmpty).join('\n');
+                    }()),
                     onTap: () {
                       final id = _pickStr(row, ['ActivityCategoryId', 'ActivityId', 'Id', 'ID', 'id']);
                       if (!UnifyApi.isUuid(id)) return;

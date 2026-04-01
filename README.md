@@ -2,7 +2,9 @@
 
 [中文](README.zh-CN.md)
 
-> Android app for browsing and managing lectures on the XMU "厦信飞翔" platform.
+**Current release: v0.3.0**
+
+> Android app for browsing and managing lectures on the XMU "厦信飞翔" platform (`unify.xmu.edu.cn`).
 
 ## Screenshots
 
@@ -14,26 +16,26 @@
 
 ## Features
 
-- **My Sign-ups** — view all lectures you have registered for, with host, sign-up start time, venue and status
-- **My Sign-ins** — view lectures you have already signed in to
-- **Lecture detail** — host, venue, sign-up window, session list, full description (HTML stripped)
-- **Status banner** — real-time banner showing sign-up not started / in progress / closed / already registered
-- **Alarm** — set an Android alarm for 20 / 10 / 2 minutes before the lecture or sign-in time
-- **Share** — share lecture info (name, host, venue, start time) via system share sheet
-- **Profile** — display avatar, name, student ID, phone and email from your account
-- **Cookie persistence** — Cookie is stored locally via `shared_preferences`
+- **Lectures (sign-up)** — full list from `GetUserActivities`; each row shows host, sign-up start (from `GetUserActivityCategory` when needed), venue, and **derived status** (not started / open / registered / ended, etc.) merged from the category API so it matches your account
+- **My sign-ins** — lectures you have already checked in to (`MySignIn`)
+- **Lecture detail** — host, venue, sign-up window, sessions, description (HTML stripped), **one-tap sign-up** (`SignUp`) when the server allows it
+- **Status banner** on detail — same rules as the list: sign-up phase and registration state
+- **Alarms** — Android alarm 20 / 10 / 2 minutes before sign-up or lecture start
+- **Calendar** — add sign-up or lecture start reminders
+- **Share** — lecture summary via the system share sheet
+- **Profile** — avatar, name, student ID, phone, email
+- **Cookie** — stored with `shared_preferences`
 
 ## Platform
 
-Android supported. macOS / iOS / Windows / Web: TBD.
+Android only (cleartext to campus HTTP; Web is not supported for API calls).
 
-## Get Cookie (Wireshark capture)
+## Get Cookie (Wireshark)
 
-1. Download and install [Wireshark](https://www.wireshark.org/) (desktop).
-2. Open WeChat for Windows, enter the "厦信飞翔" Official Account and sign in.
-3. In Wireshark, select your active network interface and start capturing.
-4. Open / refresh any page in WeChat; filter by `http` or the target domain.
-5. Click any request → expand **Hypertext Transfer Protocol** → copy the full `Cookie` header value.
+1. Install [Wireshark](https://www.wireshark.org/).
+2. Open WeChat (PC), sign in to the "厦信飞翔" official account.
+3. Capture on your active interface; trigger any in-app page load.
+4. Filter by `http` or the unify host; open a request → **HTTP** → copy the full `Cookie` header.
 
 ## Run
 
@@ -42,17 +44,21 @@ flutter pub get
 flutter run
 ```
 
-## Build Android APK
+## Build release APK
 
 ```bash
 flutter build apk --release
 ```
 
-Output: `build/app/outputs/flutter-apk/app-release.apk`
+Default artifact: `build/app/outputs/flutter-apk/app-release.apk`  
+GitHub Actions / releases use: `xiaxinfeixiang-lecture.apk` (same binary, renamed).
+
+## Releases
+
+Tags `v*` on `main` build and attach `xiaxinfeixiang-lecture.apk` (see `.github/workflows/android.yml`).
 
 ## Set Cookie
 
-Tap the cookie icon (top-right of any page) or go to **我的 → Cookie**, paste the full `Cookie` string and save.
-Cookie format example: `deviceKey=951b74c7-f351-4704-a20c-b434f85ddcbe`
-
-Note: Cookie expires. If requests start failing, capture and set a new Cookie.
+Use the cookie icon (top-right) or **我的 → Cookie**, paste the full cookie string, save.  
+Example: `deviceKey=951b74c7-f351-4704-a20c-b434f85ddcbe`  
+Cookies expire; capture a new one if requests fail.

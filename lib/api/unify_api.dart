@@ -74,6 +74,22 @@ class UnifyApi {
     );
   }
 
+  Future<Map<String, dynamic>> getUserActivities({
+    required String cookie,
+    int page = 1,
+    int pageSize = 500,
+  }) {
+    return _postForm(
+      '/api/activity/GetUserActivities',
+      cookie,
+      body: {
+        'page': '$page',
+        'pageSize': '$pageSize',
+        'deviceKey': '',
+      },
+    );
+  }
+
   Future<Map<String, dynamic>> mySignIn({
     required String cookie,
     int page = 1,
@@ -123,6 +139,22 @@ class UnifyApi {
       '/api/activity/GetUserActivityCategory',
       cookie,
       body: {
+        'id': id,
+        'deviceKey': '',
+      },
+    );
+  }
+
+  Future<Map<String, dynamic>> signUp({
+    required String cookie,
+    required String id,
+    int state = 0,
+  }) {
+    return _postForm(
+      '/api/activity/SignUp',
+      cookie,
+      body: {
+        'state': '$state',
         'id': id,
         'deviceKey': '',
       },

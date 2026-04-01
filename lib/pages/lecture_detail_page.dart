@@ -22,6 +22,7 @@ class _LectureDetailPageState extends State<LectureDetailPage> {
   final _api = UnifyApi();
 
   bool _loading = true;
+  bool _signingUp = false;
   String? _error;
   Map<String, dynamic>? _res;
 
@@ -361,6 +362,54 @@ class _LectureDetailPageState extends State<LectureDetailPage> {
     _load();
   }
 
+  bool _signUpEnabled(Map<String, dynamic>? res, Map<String, dynamic>? data) {
+    final isSignUp = (res?['isSignUp'] == true) || (data?['IsSignUp'] == true);
+    if (isSignUp) return false;
+    final now = DateTime.now();
+    final b = _parseXmuDateTime((data?['SignUpBegin'] ?? '').toString());
+    final e = _parseXmuDateTime((data?['SignUpEnd'] ?? '').toString());
+    if (b == null) return false;
+    if (now.isBefore(b)) return false;
+    if (e != null && now.isAfter(e)) return false;
+    return true;
+  }
+
+  String _signUpLabel(Map<String, dynamic>? res, Map<String, dynamic>? data) {
+    final isSignUp = (res?['isSignUp'] == true) || (data?['IsSignUp'] == true);
+    if (isSignUp) return '已报名';
+    final now = DateTime.now();
+    final b = _parseXmuDateTime((data?['SignUpBegin'] ?? '').toString());
+    final e = _parseXmuDateTime((data?['SignUpEnd'] ?? '').toString());
+    if (b == null) return '暂不可报名';
+    if (now.isBefore(b)) return '报名未开始';
+    if (e != null && now.isAfter(e)) return '报名已结束';
+    return '立即报名';
+  }
+
+  Future<void> _submitSignUp() async {
+    if (_signingUp) return;
+    final cookie = (await CookieStore.getCookie())?.trim();
+    if (!mounted) return;
+    if (cookie == null || cookie.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('请先设置 Cookie')));
+      return;
+    }
+    setState(() => _signingUp = true);
+    try {
+      final out = await _api.signUp(cookie: cookie, id: widget.id);
+      if (!mounted) return;
+      final ok = out['success'] == true;
+      final msg = (out['msg'] ?? (ok ? '报名成功' : '报名失败')).toString();
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+      if (ok) await _load();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
+    } finally {
+      if (mounted) setState(() => _signingUp = false);
+    }
+  }
+
   Future<void> _load() async {
     setState(() {
       _loading = true;
@@ -479,6 +528,21 @@ class _LectureDetailPageState extends State<LectureDetailPage> {
                 emphasis,
                 const SizedBox(height: 12),
               ],
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton.icon(
+                  onPressed: (_signingUp || !_signUpEnabled(res, data)) ? null : _submitSignUp,
+                  icon: _signingUp
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                        )
+                      : const Icon(Icons.how_to_reg),
+                  label: Text(_signingUp ? '提交中…' : _signUpLabel(res, data)),
+                ),
+              ),
+              const SizedBox(height: 12),
               Card(
                 child: Column(
                   children: [
